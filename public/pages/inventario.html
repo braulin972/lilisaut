@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario Profesional - Stream Commerce</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans">
+
+    <nav class="bg-slate-800 border-b border-slate-700 p-4 shadow-md">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold text-indigo-400 tracking-wider">STREAM COMMERCE</h1>
+            <div class="flex space-x-4 text-sm">
+                <a href="index.html" class="text-slate-400 hover:text-white transition">Dashboard</a>
+                <a href="inventario.html" class="text-indigo-400 font-semibold border-b-2 border-indigo-500 pb-1">Inventario</a>
+                <a href="pedidos_whatsapp.html" class="text-slate-400 hover:text-white transition">Procesador WA</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- FORMULARIO ADAPTATIVO -->
+        <div class="space-y-4">
+            <section class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-xl">
+                <h2 id="formTitle" class="text-lg font-bold text-white mb-4 flex items-center gap-2">📦 Alta de Producto</h2>
+                
+                <input type="hidden" id="editingProductId" value="">
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Nombre del Producto</label>
+                        <input type="text" id="name" placeholder="Ej: Playera Negra Mayo" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm focus:outline-none focus:border-indigo-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Cantidad en Stock</label>
+                        <input type="number" id="stock" value="10" min="0" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm focus:outline-none focus:border-indigo-500">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Precio Compra ($)</label>
+                            <input type="number" id="purchase_price" placeholder="150" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Precio Venta ($)</label>
+                            <input type="number" id="sale_price" placeholder="299" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm focus:outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+
+                    <button id="btnGuardar" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition cursor-pointer shadow-md">
+                        Guardar en Sistema
+                    </button>
+                    <button id="btnCancelarEdicion" class="hidden w-full bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 px-4 rounded-lg text-xs transition mt-1 cursor-pointer">
+                        Cancelar Edición
+                    </button>
+                </div>
+            </section>
+        </div>
+
+        <!-- TABLA CON ACCIONES -->
+        <section class="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-xl">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-white">Productos en Catálogo</h2>
+                <span class="text-xs text-slate-400 font-mono" id="displayTenant">Detectando Tienda...</span>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead class="text-xs uppercase bg-slate-900 text-slate-400 border-b border-slate-700">
+                        <tr>
+                            <th class="p-3">Código</th>
+                            <th class="p-3">Producto</th>
+                            <th class="p-3 text-indigo-400">Palabra Clave</th>
+                            <th class="p-3 text-center">Costo</th>
+                            <th class="p-3 text-center">Venta</th>
+                            <th class="p-3 text-center">Stock</th>
+                            <th class="p-3 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaProductos"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let localCacheProducts = [];
+
+        async function ensureTenant() {
+            if (!localStorage.getItem('dev_tenant_id')) {
+                window.location.href = 'registro.html';
+                return;
+            }
+            document.getElementById('displayTenant').innerText = `Tienda ID: ${localStorage.getItem('dev_tenant_id').substring(0,8)}...`;
+            loadProducts();
+        }
+
+        async function loadProducts() {
+            const tenantId = localStorage.getItem('dev_tenant_id');
+            const res = await fetch('/api/inventory', { headers: { 'x-tenant-id': tenantId } });
+            const data = await res.json();
+            
+            localCacheProducts = data.products || [];
+            const tbody = document.getElementById('tablaProductos');
+            tbody.innerHTML = '';
+
+            if(localCacheProducts.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-xs text-slate-500 italic">No tienes productos guardados.</td></tr>`;
+                return;
+            }
+
+            localCacheProducts.forEach(p => {
+                tbody.innerHTML += `
+                    <tr class="border-b border-slate-700/50 hover:bg-slate-700/20 text-xs">
+                        <td class="p-3 font-mono text-slate-400">${p.sku}</td>
+                        <td class="p-3 font-medium text-white">${p.name}</td>
+                        <td class="p-3 text-indigo-400 font-bold font-mono">${p.keyword}</td>
+                        <td class="p-3 text-center text-rose-300">$${p.purchase_price}</td>
+                        <td class="p-3 text-center text-emerald-400 font-semibold">$${p.sale_price}</td>
+                        <td class="p-3 text-center font-bold text-slate-200">${p.stock_physical}</td>
+                        <td class="p-3 text-center space-x-2 whitespace-nowrap">
+                            <button onclick="prepareEdit('${p.id}')" class="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer">Editar</button>
+                            <button onclick="deleteProduct('${p.id}')" class="text-rose-400 hover:text-rose-300 font-semibold cursor-pointer">Eliminar</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        // CARGAR LOS DATOS EN EL FORMULARIO PARA EDITAR
+        window.prepareEdit = function(id) {
+            const product = localCacheProducts.find(p => p.id === id);
+            if (!product) return;
+
+            document.getElementById('formTitle').innerText = "📝 Editar Producto";
+            document.getElementById('editingProductId').value = product.id;
+            document.getElementById('name').value = product.name;
+            document.getElementById('stock').value = product.stock_physical;
+            document.getElementById('purchase_price').value = product.purchase_price;
+            document.getElementById('sale_price').value = product.sale_price;
+
+            document.getElementById('btnGuardar').innerText = "Actualizar Cambios";
+            document.getElementById('btnCancelarEdicion').classList.remove('hidden');
+        };
+
+        window.cancelEdit = function() {
+            document.getElementById('formTitle').innerText = "📦 Alta de Producto";
+            document.getElementById('editingProductId').value = "";
+            document.getElementById('name').value = "";
+            document.getElementById('stock').value = "10";
+            document.getElementById('purchase_price').value = "";
+            document.getElementById('sale_price').value = "";
+
+            document.getElementById('btnGuardar').innerText = "Guardar en Sistema";
+            document.getElementById('btnCancelarEdicion').classList.add('hidden');
+        };
+
+        document.getElementById('btnCancelarEdicion').addEventListener('click', window.cancelEdit);
+
+        // MANEJAR GUARDADO Y ACTUALIZACIÓN
+        document.getElementById('btnGuardar').addEventListener('click', async () => {
+            const tenantId = localStorage.getItem('dev_tenant_id');
+            const id = document.getElementById('editingProductId').value;
+            const name = document.getElementById('name').value.trim();
+            const stock = document.getElementById('stock').value.trim();
+            const purchase_price = document.getElementById('purchase_price').value.trim();
+            const sale_price = document.getElementById('sale_price').value.trim();
+
+            if (!name || !stock || !sale_price) {
+                alert('Campos obligatorios incompletos.');
+                return;
+            }
+
+            const isEditing = id !== "";
+            const url = '/api/inventory';
+            const method = isEditing ? 'PUT' : 'POST';
+
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json', 'x-tenant-id': tenantId },
+                body: JSON.stringify({ id, name, stock_physical: stock, purchase_price, sale_price })
+            });
+
+            if (res.ok) {
+                window.cancelEdit();
+                loadProducts();
+            } else {
+                const err = await res.json();
+                alert(err.error);
+            }
+        });
+
+        // ELIMINACIÓN LÓGICA (Soft Delete) SAFE PARA FINANZAS
+        window.deleteProduct = async function(id) {
+            if (!confirm('¿Seguro que deseas remover este producto de tu catálogo activo? Las ventas previas no se verán afectadas.')) return;
+            
+            const tenantId = localStorage.getItem('dev_tenant_id');
+            const res = await fetch('/api/inventory', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'x-tenant-id': tenantId },
+                body: JSON.stringify({ id })
+            });
+
+            if (res.ok) {
+                loadProducts();
+            } else {
+                alert('No se pudo dar de baja.');
+            }
+        };
+
+        ensureTenant();
+    </script>
+</body>
+</html>

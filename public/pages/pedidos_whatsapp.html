@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Commerce - Procesador WA</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans">
+
+    <nav class="bg-slate-950/60 border-b border-slate-800 px-6 py-4 flex justify-between items-center backdrop-blur-md sticky top-0 z-50">
+        <div class="text-xl font-black tracking-wider text-indigo-400">STREAM COMMERCE</div>
+        <div class="flex gap-6 text-sm font-medium text-slate-400">
+            <a href="/pages/inventario.html" class="hover:text-white transition-colors">Inventario</a>
+            <a href="#" class="text-indigo-400 font-semibold border-b-2 border-indigo-500 pb-1">Procesador WA</a>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <section class="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4 shadow-xl h-fit">
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                    <span class="w-2 h-5 bg-indigo-500 rounded-full"></span>
+                    Cargar Datos de Encuesta
+                </h2>
+                <label class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded-lg cursor-pointer transition-colors shadow-md">
+                    SUBIR ARCHIVO
+                    <input type="file" id="fileInput" accept=".txt,.json,.zip" class="hidden">
+                </label>
+            </div>
+            <p class="text-xs text-slate-400 leading-relaxed">
+                Pega el lote estructurado extraído de las votaciones de WhatsApp Web o sube el archivo directamente para procesar la cola de stock.
+            </p>
+
+           <div>
+    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Mi Espacio / Apodo</label>
+    <input type="text" id="tenantIdInput" placeholder="Ej. jorge-pruebas o cliente1" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-300 focus:outline-none focus:border-indigo-500 transition-colors">
+</div>
+
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">JSON de Votos Recibidos</label>
+                <textarea id="jsonInput" placeholder="Pega el texto aquí..." class="w-full h-64 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-300 focus:outline-none focus:border-indigo-500 transition-colors resize-none"></textarea>
+            </div>
+
+            <button id="btnProcesar" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-3 rounded-xl transition-all shadow-lg active:scale-[0.98]">
+                Procesar Lote Cronológico
+            </button>
+        </section>
+
+        <section class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div class="bg-slate-950/20 border border-slate-800/80 rounded-2xl p-4 shadow-lg flex flex-col min-h-[500px]">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
+                    <h3 class="text-sm font-bold text-emerald-400 flex items-center gap-2">
+                        <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                        Sin Empaquetar
+                    </h3>
+                    <span id="badgeConfirmados" class="bg-slate-800 text-slate-300 text-xs font-bold px-2 py-0.5 rounded-md font-mono">0</span>
+                </div>
+                <div id="listaConfirmados" class="flex-1 overflow-y-auto max-h-[600px] pr-1">
+                    <p class="text-xs text-slate-500 italic text-center mt-10">Ningún pedido en esta bandeja.</p>
+                </div>
+            </div>
+
+            <div class="bg-slate-950/20 border border-slate-800/80 rounded-2xl p-4 shadow-lg flex flex-col min-h-[500px]">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
+                    <h3 class="text-sm font-bold text-amber-500 flex items-center gap-2">
+                        <span class="w-2 h-2 bg-amber-500 rounded-full"></span>
+                        Empaquetado
+                    </h3>
+                    <span id="badgeEspera" class="bg-slate-800 text-slate-300 text-xs font-bold px-2 py-0.5 rounded-md font-mono">0</span>
+                </div>
+                <div id="listaEspera" class="flex-1 overflow-y-auto max-h-[600px] pr-1">
+                    <p class="text-xs text-slate-500 italic text-center mt-10">Ningún pedido empaquetado.</p>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <script>
+        // 1. Escuchar cuando el usuario selecciona un archivo (.txt, .json o .zip)
+        document.getElementById('fileInput').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (file.name.endsWith('.zip')) {
+                try {
+                    const zip = await JSZip.loadAsync(file);
+                    const txtFile = Object.keys(zip.files).find(name => name.endsWith('.txt'));
+                    if (!txtFile) {
+                        alert('No se encontró ningún archivo de texto (.txt) dentro del ZIP.');
+                        return;
+                    }
+                    const textContent = await zip.files[txtFile].async('string');
+                    document.getElementById('jsonInput').value = textContent;
+                } catch (err) {
+                    alert('Error al descomprmir ZIP: ' + err.message);
+                }
+            } else {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    document.getElementById('jsonInput').value = evt.target.result;
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // 2. Función Principal: Agrupar por Cliente y pintar Tarjetas en pantalla
+        function renderizarOrdenes(orders) {
+            const listaSinEmpaquetar = document.getElementById('listaConfirmados');
+            const listaEmpaquetado = document.getElementById('listaEspera');
+            const badgeSinEmpaquetar = document.getElementById('badgeConfirmados');
+            const badgeEmpaquetado = document.getElementById('badgeEspera');
+
+            if (!listaSinEmpaquetar || !listaEmpaquetado) return;
+
+            listaSinEmpaquetar.innerHTML = '';
+            listaEmpaquetado.innerHTML = '';
+
+            const clientesMap = {};
+
+            orders.forEach(order => {
+                const cliente = order.customer_name;
+                const stEmpaque = order.status_empaque || 'sin_empaquetar';
+                const stPago = order.status_pago || 'no_pagado';
+
+                if (!clientesMap[cliente]) {
+                    clientesMap[cliente] = {
+                        nombre: cliente,
+                        status_empaque: stEmpaque,
+                        status_pago: stPago,
+                        productos: {},
+                        total_revenue: 0,
+                        fecha: order.created_at || order.voted_at || new Date()
+                    };
+                }
+
+                const nombreProducto = order.product_name || 
+                                       (order.products && order.products.name) || 
+                                       order.keyword || 
+                                       'Producto';
+
+                const sinStock = order.sin_stock || false;
+
+                if (!clientesMap[cliente].productos[nombreProducto]) {
+                    clientesMap[cliente].productos[nombreProducto] = {
+                        cantidad: 0,
+                        sinStock: sinStock
+                    };
+                }
+                
+                clientesMap[cliente].productos[nombreProducto].cantidad += (order.quantity_ordered || order.quantity || 1);
+                clientesMap[cliente].total_revenue += order.total_revenue || 0;
+            });
+
+            window.currentClientesMap = clientesMap;
+
+            let contSinEmpaquetar = 0;
+            let contEmpaquetado = 0;
+
+            Object.values(clientesMap).forEach(cliente => {
+                let productosHTML = '';
+                Object.entries(cliente.productos).forEach(([nombre, info]) => {
+                    if (info.sinStock) {
+                        productosHTML += `<div class="text-red-400 font-medium font-mono text-xs text-left select-none">• ${info.cantidad}x ${nombre} (sin stock)</div>`;
+                    } else {
+                        productosHTML += `<div class="text-slate-300 text-xs text-left select-none">• ${info.cantidad}x ${nombre}</div>`;
+                    }
+                });
+
+                // Clasificar por fecha
+                const fechaOrden = cliente.fecha ? new Date(cliente.fecha) : new Date();
+                const esHoy = fechaOrden.toDateString() === new Date().toDateString();
+
+                const badgeNovedad = esHoy 
+                    ? `<span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded">⚡ NUEVO</span>` 
+                    : `<span class="bg-slate-800 text-slate-400 text-[10px] font-medium px-2 py-0.5 rounded">HISTÓRICO</span>`;
+
+                const tarjetaHTML = `
+                    <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/60 flex flex-col gap-3 text-xs mb-3 shadow-md">
+                        <div class="flex justify-between items-start">
+                            <div class="flex items-center gap-2">
+                                <h4 class="font-bold text-sm text-white tracking-wide">${cliente.nombre}</h4>
+                                ${badgeNovedad}
+                            </div>
+                            <span class="text-emerald-400 font-bold font-mono text-sm">$${cliente.total_revenue}</span>
+                        </div>
+                        
+                        <div class="flex flex-col gap-1 pl-1 py-1 border-l border-slate-800">
+                            ${productosHTML}
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 mt-1">
+                            <button onclick="cambiarEstadoEmpaque('${cliente.nombre}')" class="bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 py-1.5 px-2 rounded-lg font-medium opacity-50 cursor-not-allowed">
+                                Empaquetar
+                            </button>
+                            <button onclick="cambiarEstadoPago('${cliente.nombre}')" class="bg-slate-800 text-slate-400 border border-slate-700 py-1.5 px-2 rounded-lg font-medium opacity-50 cursor-not-allowed">
+                                No Pagado
+                            </button>
+                            <button onclick="editarPedido('${cliente.nombre}')" class="bg-amber-500/10 text-amber-400 border border-amber-500/20 py-1.5 px-2 rounded-lg font-medium">
+                                Editar
+                            </button>
+                            <button onclick="compartirPedido('${cliente.nombre}')" class="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 py-1.5 px-2 rounded-lg font-medium cursor-pointer">
+                                Compartir
+                            </button>
+                        </div>
+                    </div>`;
+
+                if (cliente.status_empaque === 'empaquetado') {
+                    listaEmpaquetado.innerHTML += tarjetaHTML;
+                    contEmpaquetado++;
+                } else {
+                    listaSinEmpaquetar.innerHTML += tarjetaHTML;
+                    contSinEmpaquetar++;
+                }
+            });
+
+            if (badgeSinEmpaquetar) badgeSinEmpaquetar.innerText = contSinEmpaquetar;
+            if (badgeEmpaquetado) badgeEmpaquetado.innerText = contEmpaquetado;
+        }
+
+        // 3 y 4. Funciones inactivas en V1.0 para evitar errores HTTP
+        function cambiarEstadoEmpaque(customerName) {
+            console.log("Acción pausada para esta versión.");
+        }
+
+        function cambiarEstadoPago(customerName) {
+            console.log("Acción pausada para esta versión.");
+        }
+
+        // 5. Editar Pedido
+        function editarPedido(customerName) {
+            alert(`Modo edición activo para el cliente: ${customerName}`);
+        }
+
+        // 6. Generar Ticket Imagen
+        async function compartirPedido(customerName) {
+            const cliente = window.currentClientesMap[customerName];
+            if (!cliente) return;
+
+            const ticket = document.createElement('div');
+            ticket.style.position = 'absolute';
+            ticket.style.top = '-9999px';
+            ticket.style.width = '350px';
+            ticket.style.padding = '20px';
+            ticket.style.background = '#0f172a';
+            ticket.style.color = '#ffffff';
+            ticket.style.fontFamily = 'sans-serif';
+            ticket.style.borderRadius = '12px';
+            ticket.style.border = '1px solid #334155';
+
+            let listadoProductos = '';
+            Object.entries(cliente.productos).forEach(([nombre, info]) => {
+                const stockTxt = info.sinStock ? ' (sin stock)' : '';
+                const color = info.sinStock ? '#f87171' : '#cbd5e1';
+                listadoProductos += `<div style="font-size: 13px; margin-bottom: 6px; color: ${color}">• ${info.cantidad}x ${nombre}${stockTxt}</div>`;
+            });
+
+            ticket.innerHTML = `
+                <div style="text-align: center; border-bottom: 1px dashed #334155; padding-bottom: 10px; margin-bottom: 14px;">
+                    <h3 style="margin: 0; font-size: 15px; color: #818cf8; text-transform: uppercase;">Resumen de Compra</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 12px; color: #94a3b8;">Cliente: ${cliente.nombre}</p>
+                </div>
+                <div style="margin-bottom: 14px;">${listadoProductos}</div>
+                <div style="border-top: 1px solid #334155; padding-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11px; font-weight: bold; color: #94a3b8;">PENDIENTE</span>
+                    <span style="font-size: 15px; font-weight: bold; color: #34d399;">Total: $${cliente.total_revenue}</span>
+                </div>`;
+
+            document.body.appendChild(ticket);
+
+            try {
+                const canvas = await html2canvas(ticket, { backgroundColor: '#0f172a', scale: 2 });
+                document.body.removeChild(ticket);
+
+                canvas.toBlob(async (blob) => {
+                    const file = new File([blob], `pedido_${customerName}.png`, { type: 'image/png' });
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({ files: [file], title: `Pedido ${customerName}` });
+                    } else {
+                        const link = document.createElement('a');
+                        link.download = `pedido_${customerName}.png`;
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                    }
+                });
+            } catch (err) {
+                alert("Error al generar imagen de ticket.");
+            }
+        }
+
+        // 7. Cargar datos del Servidor
+        async function cargarOrdenesHistoricas() {
+            const tenantId = document.getElementById('tenantIdInput')?.value || "8f5e0cf9-1b94-449e-af85-65dcbe84b695";
+            try {
+                const res = await fetch('/api/whatsapp/orders', {
+                    method: 'GET',
+                    headers: { 'x-tenant-id': tenantId }
+                });
+                const data = await res.json();
+                if (res.ok && data.orders) {
+                    renderizarOrdenes(data.orders);
+                }
+            } catch (err) {
+                console.error('Error al recuperar datos:', err.message);
+            }
+        }
+
+        // 8. Procesamiento del Lote
+        document.getElementById('btnProcesar').addEventListener('click', async () => {
+            const tenantId = document.getElementById('tenantIdInput').value;
+            const text = document.getElementById('jsonInput').value.trim();
+
+            if (!text) {
+                alert('Pega o carga un lote de texto primero.');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/whatsapp/upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-tenant-id': tenantId },
+                    body: JSON.stringify({ text_batch: text })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Fallo del Servidor');
+
+                await cargarOrdenesHistoricas();
+                alert('¡Lote procesado con éxito!');
+            } catch (err) {
+                alert(err.message);
+            }
+        });
+
+        // 9. Carga inicial y persistencia del apodo
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('tenantIdInput');
+    
+    // Recuperar apodo previo o asignar uno por defecto
+    const savedTenant = localStorage.getItem('mi_apodo_app') || 'cliente1';
+    if (input) input.value = savedTenant;
+
+    // Guardar si se cambia el apodo y recargar datos
+    if (input) {
+        input.addEventListener('change', () => {
+            localStorage.setItem('mi_apodo_app', input.value.trim());
+            cargarOrdenesHistoricas();
+        });
+    }
+
+    cargarOrdenesHistoricas();
+});
+    </script>
+</body>
+</html>

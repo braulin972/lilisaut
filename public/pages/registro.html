@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Commerce - Crear Cuenta</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between font-sans">
+
+    <main class="flex-grow flex items-center justify-center p-6">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-8 shadow-2xl max-w-md w-full space-y-6">
+            <div class="text-center">
+                <h1 class="text-2xl font-extrabold text-indigo-400 tracking-wider">STREAM COMMERCE</h1>
+                <p class="text-xs text-slate-400 mt-1">Registra tu negocio y activa tu licencia de prueba inmediatamente</p>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Nombre de la Tienda / Negocio</label>
+                    <input type="text" id="storeName" placeholder="Ej: Mi Boutique Premium" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm focus:outline-none focus:border-indigo-500 text-white font-medium">
+                </div>
+
+                <button id="btnRegistrar" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-lg text-sm transition shadow-lg shadow-indigo-600/20 cursor-pointer">
+                    Crear Cuenta y Activar Licencia
+                </button>
+            </div>
+
+            <div id="msgResultado" class="hidden p-3 bg-emerald-950 border border-emerald-500 text-emerald-400 text-xs rounded-lg font-medium text-center"></div>
+        </div>
+    </main>
+
+    <script>
+        document.getElementById('btnRegistrar').addEventListener('click', async () => {
+            const name = document.getElementById('storeName').value.trim();
+            const msgBox = document.getElementById('msgResultado');
+            
+            if (!name) {
+                alert('Por favor, ingresa el nombre de tu tienda.');
+                return;
+            }
+
+            try {
+                // Hacemos la petición a la ruta blindada del backend
+                const res = await fetch('/api/setup-dev', { method: 'POST' });
+                const data = await res.json();
+
+                if (res.ok && data.status === 'success') {
+                    // Guardamos el ID real generado en el localStorage de manera limpia
+                    localStorage.setItem('dev_tenant_id', data.tenant_id);
+                    
+                    msgBox.classList.remove('hidden');
+                    msgBox.innerText = "¡Tienda creada con éxito! Redireccionando...";
+
+                    // Redireccionar al inventario en 1.5 segundos
+                    setTimeout(() => {
+                        window.location.href = 'inventario.html';
+                    }, 1500);
+                } else {
+                    alert('Error en el registro: ' + (data.error || 'Intenta de nuevo'));
+                }
+            } catch (err) {
+                alert('Fallo de conexión con el servidor: ' + err.message);
+            }
+        });
+    </script>
+</body>
+</html>
